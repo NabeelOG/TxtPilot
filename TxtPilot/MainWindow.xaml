@@ -1,0 +1,45 @@
+﻿<Window x:Class="TxtPilot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TxtPilot"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="500" Width="800">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            
+            <TextBlock Text="Txt Pilot"
+                       FontSize="26"
+                       FontWeight="Bold"/>
+            
+            <TextBlock Text="Manage your local text files" 
+                       Foreground="Gray"
+                       Margin="0, 4, 0, 12"/>
+            
+            <DockPanel LastChildFill="True">
+                
+                <Button Content="Browse Folder"
+                        DockPanel.Dock="Right"
+                        Padding="16, 8"
+                        Margin="8, 0, 0, 0"/>
+                
+                <TextBox x:Name="FolderPathTextBox"
+                           Height="34"
+                           Padding="8"
+                           VerticalAlignment="Center"
+                           IsReadOnly="True"
+                           Text="No Folder Selected"/>
+            </DockPanel>
+            
+        </StackPanel>
+        
+        
+    </Grid>
+</Window>
