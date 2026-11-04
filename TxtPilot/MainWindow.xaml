@@ -3,8 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:TxtPilot"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         mc:Ignorable="d"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         Title="MainWindow" Height="500" Width="800">
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -28,7 +30,8 @@
                 <Button Content="Browse Folder"
                         DockPanel.Dock="Right"
                         Padding="16, 8"
-                        Margin="8, 0, 0, 0"/>
+                        Margin="8, 0, 0, 0"
+                        Click="BrowseFolderButton_Click"/>
                 
                 <TextBox x:Name="FolderPathTextBox"
                            Height="34"
@@ -60,12 +63,32 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     
-                    <TextBlock Text="Text Files" 
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,12"/>
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="32"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="Explorer"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+
+                        <Button Grid.Column="1"
+                                x:Name="NewFileButton"
+                                Content="+"
+                                FontSize="15"
+                                FontWeight="Bold"
+                                Width="20"
+                                Height="24"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Padding="0"
+                                ToolTip="Create new text file"/>
+                    </Grid>
                     
-                    <ListView x:Name="FileListView" 
+                    <ui:ListView x:Name="FileListView" 
                               Grid.Row="1"/>
                     
                 </Grid>
@@ -78,38 +101,50 @@
                     Padding="12"
                     Margin="8,0,0,0">
                 
+                
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
+
+                    <!-- Editor heading -->
                     <TextBlock Text="File Editor"
                                FontSize="18"
                                FontWeight="SemiBold"
                                Margin="0,0,0,12"/>
-                    
-                    <StackPanel Grid.Row="1"
-                                Margin="0,0,0,12">
 
-                        <TextBlock Text="Filename"
-                                   Margin="0,0,0,4"/>
+                    <!-- Filename and Save button -->
+                    <DockPanel Grid.Row="1"
+                               LastChildFill="True"
+                               Margin="0,0,0,8">
+
+                        <Button x:Name="SaveButton"
+                                Content="Save"
+                                Padding="18,8"
+                                DockPanel.Dock="Right"
+                                Margin="8,0,0,0"
+                                ToolTip="Save changes"/>
 
                         <TextBox x:Name="FileNameTextBox"
                                  Padding="8"
-                                 IsReadOnly="True"
+                                 VerticalContentAlignment="Center"
                                  Text="No file selected"/>
 
-                        <TextBlock x:Name="FileMetadataTextBlock"
-                                   Text="File information will appear here"
-                                   Foreground="Gray"
-                                   Margin="0,8,0,0"/>
+                    </DockPanel>
 
-                    </StackPanel>
-                    
+                    <!-- File metadata -->
+                    <TextBlock x:Name="FileMetadataTextBlock"
+                               Grid.Row="2"
+                               Text="File information will appear here"
+                               Foreground="Gray"
+                               Margin="0,0,0,12"/>
+
+                    <!-- Editable content -->
                     <TextBox x:Name="EditorTextBox"
-                             Grid.Row="2"
+                             Grid.Row="3"
                              AcceptsReturn="True"
                              AcceptsTab="True"
                              TextWrapping="Wrap"
@@ -117,10 +152,11 @@
                              HorizontalScrollBarVisibility="Auto"
                              FontFamily="Consolas"
                              FontSize="14"
-                             IsReadOnly="True"
                              Padding="10"
                              Text="Select a text file to view its contents."/>
+
                 </Grid>
+
             </Border>
             
         </Grid>
