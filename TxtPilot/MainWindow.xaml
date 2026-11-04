@@ -15,7 +15,7 @@
         
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             
-            <TextBlock Text="Txt Pilot"
+            <TextBlock Text="Vim Pilot"
                        FontSize="26"
                        FontWeight="Bold"/>
             
@@ -40,6 +40,96 @@
             
         </StackPanel>
         
+        <Grid Grid.Row="1">
+            
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            
+            <Border Grid.Column="0"
+                    BorderBrush="#CCCCCC"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12"
+                    Margin="0, 0, 8, 0">
+                
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Text="Text Files" 
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,12"/>
+                    
+                    <ListView x:Name="FileListView" 
+                              Grid.Row="1"/>
+                    
+                </Grid>
+            </Border>
+            
+            <Border Grid.Column="1"
+                    BorderBrush="#CCCCCC"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12"
+                    Margin="8,0,0,0">
+                
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Text="File Editor"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,12"/>
+                    
+                    <StackPanel Grid.Row="1"
+                                Margin="0,0,0,12">
+
+                        <TextBlock Text="Filename"
+                                   Margin="0,0,0,4"/>
+
+                        <TextBox x:Name="FileNameTextBox"
+                                 Padding="8"
+                                 IsReadOnly="True"
+                                 Text="No file selected"/>
+
+                        <TextBlock x:Name="FileMetadataTextBlock"
+                                   Text="File information will appear here"
+                                   Foreground="Gray"
+                                   Margin="0,8,0,0"/>
+
+                    </StackPanel>
+                    
+                    <TextBox x:Name="EditorTextBox"
+                             Grid.Row="2"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             IsReadOnly="True"
+                             Padding="10"
+                             Text="Select a text file to view its contents."/>
+                </Grid>
+            </Border>
+            
+        </Grid>
+        
+        <StatusBar Grid.Row="2"
+                   Margin="0,12,0,0">
+            <TextBlock Text="Ready"/>
+        </StatusBar>
         
     </Grid>
+    
 </Window>
