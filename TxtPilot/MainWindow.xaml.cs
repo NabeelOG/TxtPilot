@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.IO;
+using System.Windows;
 using Microsoft.Win32;
 
 namespace TxtPilot;
@@ -25,5 +26,26 @@ public partial class MainWindow : Window
         _selectedFolderPath = dialog.FolderName;
 
         FolderPathTextBox.Text = _selectedFolderPath;
+
+        LoadTextFiles();
+    }
+
+    private void LoadTextFiles()
+    {
+        if (string.IsNullOrEmpty(_selectedFolderPath))
+        {
+            return;
+        }
+        
+        var files = Directory.GetFiles(
+            _selectedFolderPath, 
+            "*.txt", 
+            SearchOption.TopDirectoryOnly);
+
+        var fileInfos = files
+            .Select(filePath => new FileInfo(filePath))
+            .ToList();
+        
+        FileListView.ItemsSource = fileInfos;
     }
 }

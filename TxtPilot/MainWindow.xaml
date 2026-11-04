@@ -89,7 +89,17 @@
                     </Grid>
                     
                     <ui:ListView x:Name="FileListView" 
-                              Grid.Row="1"/>
+                              Grid.Row="1">
+                        <ui:ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📝"></TextBlock>
+                                    <TextBlock Text="{Binding Name}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ui:ListView.ItemTemplate>
+                    </ui:ListView>
                     
                 </Grid>
             </Border>
