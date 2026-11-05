@@ -1,6 +1,8 @@
 ﻿using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
+using System.Windows.Threading;
 
 namespace TxtPilot;
 
@@ -10,9 +12,16 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        _toastTimer.Tick += (sender, _) =>
+        {
+            RefreshToast.Visibility = Visibility.Collapsed;
+            _toastTimer.Stop();
+        };
     }
 
-    private void BrowseFolderButton_Click(object sender, RoutedEventArgs eventArgs)
+    // in the below like received e is event and sender is what ui element initiated the function call
+    private void BrowseFolderButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog()
         {
@@ -23,6 +32,18 @@ public partial class MainWindow : Window
         var result = dialog.ShowDialog();
 
         if (result != true) return;
+
+        var newFolderPath = dialog.FolderName;
+
+        if (_selectedFolderPath != newFolderPath)
+        {
+            FileListView.SelectedItem = null;
+            
+            EditorTextBox.Clear();
+            FileNameTextBox.Clear();
+            FileMetadataTextBlock.Text = "";
+        }
+        
         _selectedFolderPath = dialog.FolderName;
 
         FolderPathTextBox.Text = _selectedFolderPath;
@@ -47,5 +68,42 @@ public partial class MainWindow : Window
             .ToList();
         
         FileListView.ItemsSource = fileInfos;
+    }
+
+    // in the below like received e is event and sender is what ui element initiated the function call
+    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        LoadTextFiles();
+        
+        ShowToast("Explorer refreshed");
+    }
+
+    private readonly DispatcherTimer _toastTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(2)
+    };
+
+    private void ShowToast(string message)
+    {
+        ToastMessage.Text = message;
+        
+        RefreshToast.Visibility = Visibility.Visible;
+        
+        _toastTimer.Stop();
+        _toastTimer.Start();
+    }
+
+    private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (FileListView.SelectedItem is not FileInfo selectedFile)
+        {
+            return;
+        }
+        
+        EditorTextBox.Text = File.ReadAllText(selectedFile.FullName);
+        FileNameTextBox.Text =  selectedFile.Name;
+
+        FileMetadataTextBlock.Text =
+            $"Size: {selectedFile.Length} bytes\n" + $"Created: {selectedFile.CreationTime}\n" + $"Modified: {selectedFile.LastWriteTime}";
     }
 }
