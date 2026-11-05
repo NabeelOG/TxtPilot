@@ -67,6 +67,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="32"/>
+                            <ColumnDefinition Width="32"/>
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0"
@@ -86,10 +87,23 @@
                                 VerticalAlignment="Center"
                                 Padding="0"
                                 ToolTip="Create new text file"/>
+                        
+                        <Button Grid.Column="2"
+                                x:Name="RefreshButton"
+                                Content="🔄️"
+                                FontSize="15"
+                                Width="20"
+                                Height="24"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Padding="0"
+                                ToolTip="Refresh Explorer"
+                                Click="RefreshButton_Click"/>
                     </Grid>
                     
                     <ui:ListView x:Name="FileListView" 
-                              Grid.Row="1">
+                              Grid.Row="1"
+                              SelectionChanged="FileListView_SelectionChanged">
                         <ui:ListView.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -120,13 +134,11 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Editor heading -->
                     <TextBlock Text="File Editor"
                                FontSize="18"
                                FontWeight="SemiBold"
                                Margin="0,0,0,12"/>
 
-                    <!-- Filename and Save button -->
                     <DockPanel Grid.Row="1"
                                LastChildFill="True"
                                Margin="0,0,0,8">
@@ -145,14 +157,12 @@
 
                     </DockPanel>
 
-                    <!-- File metadata -->
                     <TextBlock x:Name="FileMetadataTextBlock"
                                Grid.Row="2"
                                Text="File information will appear here"
                                Foreground="Gray"
                                Margin="0,0,0,12"/>
 
-                    <!-- Editable content -->
                     <TextBox x:Name="EditorTextBox"
                              Grid.Row="3"
                              AcceptsReturn="True"
@@ -175,6 +185,32 @@
                    Margin="0,12,0,0">
             <TextBlock Text="Ready"/>
         </StatusBar>
+        
+        <!-- Toaster Notification popup-->
+        <Border x:Name="RefreshToast"
+                Grid.Row="0" Grid.RowSpan="3"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0, 0, 12, 45"
+                Background="#252525"
+                CornerRadius="8"
+                Padding="16,10"
+                Visibility="Collapsed">
+            
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="✔️"
+                           Foreground="#4ADE80"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Margin="0,0,10,0"/>
+                
+                <TextBlock x:Name="ToastMessage"
+                           Text="Explorer Refreshed"
+                           Foreground="White"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+        
         
     </Grid>
     
