@@ -1,7 +1,8 @@
-﻿using System.IO;
+﻿using Microsoft.Win32;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using Microsoft.Win32;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace TxtPilot;
@@ -9,6 +10,16 @@ namespace TxtPilot;
 public partial class MainWindow : Window
 {
     private string? _selectedFolderPath;
+
+    private string? _selectedFilePath;
+
+    private bool _isEditMode = false;
+    private bool _hasUnsavedChanges = false;
+
+    private string? _originalContent;
+
+    private DateTime _originalLastWriteTime;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -38,10 +49,12 @@ public partial class MainWindow : Window
         if (_selectedFolderPath != newFolderPath)
         {
             FileListView.SelectedItem = null;
-            
-            EditorTextBox.Clear();
-            FileNameTextBox.Clear();
-            FileMetadataTextBlock.Text = "";
+
+            //EditorTextBox.Clear();
+            //FileNameTextBox.Clear();
+            //FileMetadataTextBlock.Text = "";
+
+            ClearEditor();
         }
         
         _selectedFolderPath = dialog.FolderName;
@@ -99,11 +112,325 @@ public partial class MainWindow : Window
         {
             return;
         }
-        
-        EditorTextBox.Text = File.ReadAllText(selectedFile.FullName);
-        FileNameTextBox.Text =  selectedFile.Name;
 
+        try
+        {
+            // Check whether the file still exists
+            if (!File.Exists(selectedFile.FullName))
+            {
+                MessageBox.Show(
+                    $"The file '{selectedFile.Name}' no longer exists.\n\nThe Explorer will be refreshed.",
+                    "File Not Found",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                LoadTextFiles();
+
+                ClearEditor();
+
+                return;
+            }
+
+            _selectedFilePath = selectedFile.FullName;
+
+            EditorTextBox.Text = File.ReadAllText(selectedFile.FullName);
+            FileNameTextBox.Text = selectedFile.Name;
+
+            _originalContent = EditorTextBox.Text;
+            _originalLastWriteTime = new FileInfo(selectedFile.FullName).LastWriteTime;
+
+            _isEditMode = false;
+            _hasUnsavedChanges = false;
+
+            EditorTextBox.IsReadOnly = true;
+
+            EditButton.IsEnabled = true;
+            SaveButton.IsEnabled = false;
+            CancelEditButton.IsEnabled = false;
+
+            UpdateFileMetaData(new FileInfo(selectedFile.FullName));
+        }
+        catch (FileNotFoundException)
+        {
+            MessageBox.Show(
+                "This file was deleted or moved outside TxtPilot.",
+                "File Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
+            LoadTextFiles();
+            ClearEditor();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            MessageBox.Show("You don't have permission to access this file.");
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show($"Unable to open the file: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Unexpected error: {ex.Message}");
+        }
+    }
+
+    private void ClearEditor()
+    {
+        _selectedFilePath = null;
+        _originalContent = null;
+        _hasUnsavedChanges = false;
+        _isEditMode = false;
+
+        EditorTextBox.Clear();
+
+        FileNameTextBox.Text = "No file selected";
+        FileMetadataTextBlock.Text = "File information will appear here";
+
+        EditorTextBox.IsReadOnly = true;
+
+        EditButton.IsEnabled = false;
+        SaveButton.IsEnabled = false;
+        CancelEditButton.IsEnabled = false;
+    }
+
+    private void EditButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_selectedFilePath))
+        {
+            return;
+        }
+
+        _originalContent = EditorTextBox.Text;
+
+        _isEditMode = true;
+        _hasUnsavedChanges = false;
+
+        EditorTextBox.IsReadOnly = false;
+
+        EditButton.IsEnabled = false;
+        SaveButton.IsEnabled = true;
+        CancelEditButton.IsEnabled = true;
+
+        EditorTextBox.Focus();
+        EditorTextBox.CaretIndex = EditorTextBox.Text.Length;
+    }
+
+    private void EditorTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_isEditMode)
+        {
+            return;
+        }
+
+        _hasUnsavedChanges = EditorTextBox.Text != _originalContent;
+    }
+
+    private void CancelEditButton_Click(object sender, RoutedEventArgs e)
+    {
+        EditorTextBox.Text = _originalContent ?? "";
+
+        ExitEditMode();
+    }
+
+    private void ExitEditMode()
+    {
+        _isEditMode = false;
+        _hasUnsavedChanges = false;
+
+        EditorTextBox.IsReadOnly = true;
+
+        EditButton.IsEnabled = true;
+        SaveButton.IsEnabled = false;
+        CancelEditButton.IsEnabled = false;
+
+        _originalContent = EditorTextBox.Text;
+    }
+
+    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_selectedFilePath))
+        {
+            return;
+        }
+
+        if (!_hasUnsavedChanges)
+        {
+            MessageBox.Show("There are no changes to save.");
+            ExitEditMode();
+            return;
+        }
+
+        try
+        {
+
+            var currentFile = new FileInfo(_selectedFilePath);
+
+            if(currentFile.LastWriteTime != _originalLastWriteTime)
+            {
+
+                var dialog = new FileConflictWindow
+                {
+                    Owner = this
+                };
+
+                dialog.ShowDialog();
+
+                if (dialog.Reload)
+                {
+                    EditorTextBox.Text = File.ReadAllText(_selectedFilePath);
+
+                    var reloadFile = new FileInfo(_selectedFilePath);
+
+                    _originalContent = EditorTextBox.Text;
+                    _originalLastWriteTime = reloadFile.LastWriteTime;
+
+                    UpdateFileMetaData(reloadFile);
+                    ExitEditMode();
+
+                    ShowToast("File reloaded");
+
+                    return;
+                }
+
+                if(!dialog.Overwrite)
+                {
+                    return;
+                }
+            };
+
+            // replacin the editor text to file
+            File.WriteAllText(_selectedFilePath, EditorTextBox.Text);
+
+            // update the original content variable with updated data
+            _originalContent = EditorTextBox.Text;
+
+            // refresh the file metadata
+            var updatedFile = new FileInfo(_selectedFilePath);
+            updatedFile.Refresh();
+
+            _originalLastWriteTime = updatedFile.LastWriteTime;
+
+            UpdateFileMetaData(updatedFile);
+
+            ExitEditMode();
+
+            ShowToast("File saved successfully");
+
+        }
+        catch (UnauthorizedAccessException)
+        {
+            MessageBox.Show("You don't have permission to modify this file.");
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show($"Unable to save the file: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"An unexpected error occurred: {ex.Message}");
+        }
+    }
+
+    private void UpdateFileMetaData(FileInfo file)
+    {
         FileMetadataTextBlock.Text =
-            $"Size: {selectedFile.Length} bytes\n" + $"Created: {selectedFile.CreationTime}\n" + $"Modified: {selectedFile.LastWriteTime}";
+            $"Size: {file.Length} bytes\n" +
+            $"Created: {file.CreationTime}\n" +
+            $"Modified: {file.LastWriteTime}";
+    }
+
+
+    private void NewFileButton_Click(object sender, EventArgs e) {
+        if (string.IsNullOrEmpty(_selectedFolderPath))
+        {
+            MessageBox.Show("Please select a folder first");
+            return;
+        }
+
+        var dialog = new NewFileWindow
+        {
+            Owner = this
+        };
+
+        if(dialog.ShowDialog() != true)
+        {
+            return;
+        };
+
+        try
+        {
+            string fileName = dialog.FileName;
+
+            if (!fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            {
+                fileName += ".txt";
+            }
+
+            if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                fileName != Path.GetFileName(fileName) ||
+                fileName.EndsWith('.') ||
+                fileName.EndsWith(' '))
+            {
+                MessageBox.Show("Invalid file name.");
+                return;
+            }
+
+            string newFilePath = Path.Combine(_selectedFolderPath, fileName);
+
+            using (new FileStream(
+                newFilePath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            {
+            }
+
+            LoadTextFiles();
+
+            var createdFile = new FileInfo(newFilePath);
+
+            var fileToSelect = FileListView.Items
+                .Cast<FileInfo>()
+                .FirstOrDefault(file => file.FullName == createdFile.FullName);
+
+            FileListView.SelectedItem = fileToSelect;
+
+            if(fileToSelect != null)
+            {
+                EditButton_Click(this, new RoutedEventArgs());
+            }
+
+            ShowToast("File created successfully");
+
+        }
+        catch (UnauthorizedAccessException)
+        {
+            MessageBox.Show("You dont have permission to create the ile");
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show($"Unable to create the file: {ex.Message}");
+        }
+        catch (Exception ex) 
+        {
+            MessageBox.Show($"An unexpected error occured: {ex.Message}");
+        }
+    }
+
+
+    private void SaveCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        SaveButton_Click(sender, e);
+    }
+
+    private void EditCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        EditButton_Click(sender, e);
+    }
+
+    private void CreateCommand_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        NewFileButton_Click(sender, e);
     }
 }

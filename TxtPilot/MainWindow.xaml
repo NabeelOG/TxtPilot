@@ -8,6 +8,38 @@
         Background="{DynamicResource ApplicationBackgroundBrush}"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         Title="MainWindow" Height="500" Width="800">
+
+    <Window.InputBindings>
+        <KeyBinding
+        Key="S"
+        Modifiers="Control"
+        Command="{x:Static ApplicationCommands.Save}" />
+
+        <KeyBinding
+        Key="I"
+        Modifiers="Control"
+        Command="{x:Static ApplicationCommands.New}" />
+
+        <KeyBinding
+        Key="N"
+        Modifiers="Control"
+        Command="{x:Static ApplicationCommands.Open}" />
+    </Window.InputBindings>
+
+    <Window.CommandBindings>
+        <CommandBinding
+        Command="{x:Static ApplicationCommands.Save}"
+        Executed="SaveCommand_Executed" />
+
+        <CommandBinding
+        Command="{x:Static ApplicationCommands.New}"
+        Executed="EditCommand_Executed" />
+
+        <CommandBinding
+        Command="{x:Static ApplicationCommands.Open}"
+        Executed="CreateCommand_Executed" />
+    </Window.CommandBindings>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -21,7 +53,7 @@
                        FontSize="26"
                        FontWeight="Bold"/>
             
-            <TextBlock Text="Manage your local text files" 
+            <TextBlock Text="Blazingly fast Win-Native vim fork" 
                        Foreground="Gray"
                        Margin="0, 4, 0, 12"/>
             
@@ -86,7 +118,8 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Padding="0"
-                                ToolTip="Create new text file"/>
+                                ToolTip="Create new text file"
+                                Click="NewFileButton_Click"/>
                         
                         <Button Grid.Column="2"
                                 x:Name="RefreshButton"
@@ -140,20 +173,39 @@
                                Margin="0,0,0,12"/>
 
                     <DockPanel Grid.Row="1"
-                               LastChildFill="True"
-                               Margin="0,0,0,8">
+                       LastChildFill="True"
+                       Margin="0,0,0,8">
 
-                        <Button x:Name="SaveButton"
+                        <StackPanel Orientation="Horizontal"
+                            DockPanel.Dock="Right">
+
+                            <Button x:Name="EditButton"
+                                Content="Edit"
+                                Padding="14,8"
+                                Margin="8,0,4,0"
+                                Click="EditButton_Click"/>
+
+                            <Button x:Name="CancelEditButton"
+                                Content="Cancel"
+                                Padding="14,8"
+                                Margin="4,0"
+                                IsEnabled="False"
+                                Click="CancelEditButton_Click"/>
+
+                            <Button x:Name="SaveButton"
                                 Content="Save"
-                                Padding="18,8"
-                                DockPanel.Dock="Right"
-                                Margin="8,0,0,0"
-                                ToolTip="Save changes"/>
+                                Padding="14,8"
+                                Margin="4,0"
+                                IsEnabled="False"
+                                Click="SaveButton_Click"/>
+
+                        </StackPanel>
 
                         <TextBox x:Name="FileNameTextBox"
-                                 Padding="8"
-                                 VerticalContentAlignment="Center"
-                                 Text="No file selected"/>
+                            Padding="8"
+                            VerticalContentAlignment="Center"
+                            Text="No file selected"
+                            IsReadOnly="True"/>
 
                     </DockPanel>
 
@@ -173,6 +225,8 @@
                              FontFamily="Consolas"
                              FontSize="14"
                              Padding="10"
+                             IsReadOnly="True"
+                             TextChanged="EditorTextBox_TextChanged"
                              Text="Select a text file to view its contents."/>
 
                 </Grid>
