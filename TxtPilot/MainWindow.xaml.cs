@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Serilog;
 
@@ -14,12 +15,12 @@ public partial class MainWindow : Window
 
     private string? _selectedFilePath;
 
-    private bool _isEditMode = false;
-    private bool _hasUnsavedChanges = false;
+    private bool _isEditMode;
+    private bool _hasUnsavedChanges;
 
     private string? _originalContent;
 
-    private bool _isRestoringSelection = false;
+    private bool _isRestoringSelection;
 
     private DateTime _originalLastWriteTime;
 
@@ -27,7 +28,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        _toastTimer.Tick += (sender, _) =>
+        UpdateSelectedFileStatus();
+        UpdateEditModeStatus();
+
+        _toastTimer.Tick += (_, _) =>
         {
             RefreshToast.Visibility = Visibility.Collapsed;
             _toastTimer.Stop();
@@ -88,17 +92,73 @@ public partial class MainWindow : Window
         {
             return;
         }
-        
-        var files = Directory.GetFiles(
-            _selectedFolderPath, 
-            "*.txt", 
-            SearchOption.TopDirectoryOnly);
 
-        var fileInfos = files
-            .Select(filePath => new FileInfo(filePath))
-            .ToList();
-        
-        FileListView.ItemsSource = fileInfos;
+        try
+        {
+            var files = Directory.GetFiles(
+                _selectedFolderPath,
+                "*.txt",
+                SearchOption.TopDirectoryOnly);
+
+            var fileInfos = files
+                .Select(filePath => new FileInfo(filePath))
+                .ToList();
+
+            FileListView.ItemsSource = fileInfos;
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            Log.ForContext("Operation", "Folder")
+                .Error(ex, "Folder not found while loading files: {FolderPath}", _selectedFolderPath);
+
+            FileListView.ItemsSource = null;
+            ClearEditor();
+
+            MessageBox.Show(
+                "The selected folder no longer exists.",
+                "Folder Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Log.ForContext("Operation", "Folder")
+                .Error(ex, "Access denied while loading files: {FolderPath}", _selectedFolderPath);
+
+            FileListView.ItemsSource = null;
+
+            MessageBox.Show(
+                "You don't have permission to read this folder.",
+                "Access Denied",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (IOException ex)
+        {
+            Log.ForContext("Operation", "Folder")
+                .Error(ex, "Unable to load files from folder: {FolderPath}", _selectedFolderPath);
+
+            FileListView.ItemsSource = null;
+
+            MessageBox.Show(
+                $"Unable to read the folder: {ex.Message}",
+                "Folder Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log.ForContext("Operation", "Folder")
+                .Error(ex, "Unexpected error while loading files: {FolderPath}", _selectedFolderPath);
+
+            FileListView.ItemsSource = null;
+
+            MessageBox.Show(
+                $"Unexpected error while reading the folder: {ex.Message}",
+                "Unexpected Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     // in the below like received e is event and sender is what ui element initiated the function call
@@ -114,9 +174,12 @@ public partial class MainWindow : Window
         Interval = TimeSpan.FromSeconds(2)
     };
 
-    private void ShowToast(string message)
+    private void ShowToast(string message, bool showIcon = true)
     {
         ToastMessage.Text = message;
+        ToastIconTextBlock.Visibility = showIcon
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         
         RefreshToast.Visibility = Visibility.Visible;
         
@@ -159,6 +222,10 @@ public partial class MainWindow : Window
             // Check whether the file still exists
             if (!File.Exists(selectedFile.FullName))
             {
+                
+                Log.ForContext("Operation", "File")
+                    .Warning("File not found before opening: {FilePath}", selectedFile.FullName);
+                
                 MessageBox.Show(
                     $"The file '{selectedFile.Name}' no longer exists.\n\nThe Explorer will be refreshed.",
                     "File Not Found",
@@ -182,6 +249,8 @@ public partial class MainWindow : Window
 
             _isEditMode = false;
             _hasUnsavedChanges = false;
+            UpdateSelectedFileStatus();
+            UpdateEditModeStatus();
 
             EditorTextBox.IsReadOnly = true;
 
@@ -194,8 +263,11 @@ public partial class MainWindow : Window
             Log.ForContext("Operation", "File")
                 .Information("File opened: {FileName}", selectedFile.Name);
         }
-        catch (FileNotFoundException)
+        catch (FileNotFoundException ex)
         {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "File not found while opening: {FilePath}", selectedFile.FullName);
+            
             MessageBox.Show(
                 "This file was deleted or moved outside TxtPilot.",
                 "File Not Found",
@@ -205,16 +277,28 @@ public partial class MainWindow : Window
             LoadTextFiles();
             ClearEditor();
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Access denied while opening file: {FilePath}", selectedFile.FullName);
+            
             MessageBox.Show("You don't have permission to access this file.");
         }
         catch (IOException ex)
         {
+            
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unable to open file: {FilePath}", selectedFile.FullName);
+
             MessageBox.Show($"Unable to open the file: {ex.Message}");
         }
         catch (Exception ex)
         {
+            
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unexpected error while opening file: {FilePath}", selectedFile.FullName);
+
             MessageBox.Show($"Unexpected error: {ex.Message}");
         }
     }
@@ -225,10 +309,12 @@ public partial class MainWindow : Window
         _originalContent = null;
         _hasUnsavedChanges = false;
         _isEditMode = false;
+        UpdateEditModeStatus();
 
         EditorTextBox.Clear();
 
         FileNameTextBox.Text = "No file selected";
+        UpdateSelectedFileStatus();
         FileMetadataTextBlock.Text = "File information will appear here";
 
         EditorTextBox.IsReadOnly = true;
@@ -240,6 +326,7 @@ public partial class MainWindow : Window
 
     private void EditButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isEditMode) return;
         if (string.IsNullOrEmpty(_selectedFilePath))
         {
             return;
@@ -249,6 +336,8 @@ public partial class MainWindow : Window
 
         _isEditMode = true;
         _hasUnsavedChanges = false;
+        UpdateSelectedFileStatus();
+        UpdateEditModeStatus();
 
         EditorTextBox.IsReadOnly = false;
 
@@ -268,6 +357,40 @@ public partial class MainWindow : Window
         }
 
         _hasUnsavedChanges = EditorTextBox.Text != _originalContent;
+        UpdateSelectedFileStatus();
+    }
+
+    private void EditorTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (_isEditMode || string.IsNullOrEmpty(e.Text))
+        {
+            return;
+        }
+
+        ShowEditingDisabledToast();
+        e.Handled = true;
+    }
+
+    private void EditorTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_isEditMode)
+        {
+            return;
+        }
+
+        if (e.Key is Key.Back or Key.Delete or Key.Enter)
+        {
+            ShowEditingDisabledToast();
+            e.Handled = true;
+        }
+    }
+
+    private void ShowEditingDisabledToast()
+    {
+        ShowToast(string.IsNullOrEmpty(_selectedFilePath)
+                ? "Select a file from Explorer"
+                : "Enable edit mode to type (Ctrl+I)",
+            showIcon: false);
     }
 
     private void CancelEditButton_Click(object sender, RoutedEventArgs e)
@@ -281,6 +404,8 @@ public partial class MainWindow : Window
     {
         _isEditMode = false;
         _hasUnsavedChanges = false;
+        UpdateSelectedFileStatus();
+        UpdateEditModeStatus();
 
         EditorTextBox.IsReadOnly = true;
 
@@ -304,6 +429,23 @@ public partial class MainWindow : Window
         {
             MessageBox.Show("There are no changes to save.");
             ExitEditMode();
+            return;
+        }
+        
+        var folderPath = Path.GetDirectoryName(_selectedFilePath);
+
+        if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+        {
+            Log.ForContext("Operation", "File")
+                .Warning("Folder not found while saving file: {FilePath}", _selectedFilePath);
+
+            MessageBox.Show(
+                "The folder containing this file no longer exists.\n\n" +
+                "Your changes are still in the editor. Copy them somewhere else before closing.",
+                "Folder Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+
             return;
         }
 
@@ -343,7 +485,7 @@ public partial class MainWindow : Window
                 {
                     return;
                 }
-            };
+            }
 
             // replacin the editor text to file
             File.WriteAllText(_selectedFilePath, EditorTextBox.Text);
@@ -375,6 +517,29 @@ public partial class MainWindow : Window
 
             MessageBox.Show("You don't have permission to modify this file.");
         }
+        catch (DirectoryNotFoundException ex)
+        {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Folder not found while saving file: {FilePath}", _selectedFilePath);
+
+            MessageBox.Show(
+                "The folder containing this file no longer exists.\n\n" +
+                "Your changes are still in the editor. Copy them somewhere else before closing.",
+                "Folder Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (FileNotFoundException ex)
+        {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "File not found while saving: {FilePath}", _selectedFilePath);
+
+            MessageBox.Show(
+                "This file no longer exists.\n\nYour changes are still in the editor.",
+                "File Not Found",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
         catch (IOException ex)
         {
             Log.ForContext("Operation", "File")
@@ -399,6 +564,32 @@ public partial class MainWindow : Window
             $"Modified: {file.LastWriteTime}";
     }
 
+    private void UpdateEditModeStatus()
+    {
+        EditModeStatusTextBlock.Text = _isEditMode
+            ? "Editing Mode enabled"
+            : "View Mode";
+
+        EditModeStatusTextBlock.Foreground = _isEditMode
+            ? Brushes.LimeGreen
+            : Brushes.Gray;
+    }
+
+    private void UpdateSelectedFileStatus()
+    {
+        if (string.IsNullOrEmpty(_selectedFilePath))
+        {
+            SelectedFileStatusTextBlock.Text = "No file selected";
+            return;
+        }
+
+        var fileName = Path.GetFileName(_selectedFilePath);
+
+        SelectedFileStatusTextBlock.Text = _hasUnsavedChanges
+            ? $"*{fileName}"
+            : fileName;
+    }
+
 
     private void NewFileButton_Click(object sender, EventArgs e) {
         if (string.IsNullOrEmpty(_selectedFolderPath))
@@ -415,7 +606,7 @@ public partial class MainWindow : Window
         if(dialog.ShowDialog() != true)
         {
             return;
-        };
+        }
 
         string newFilePath = string.Empty;
 
@@ -438,10 +629,29 @@ public partial class MainWindow : Window
             }
 
             newFilePath = Path.Combine(_selectedFolderPath, fileName);
+            
+            var fileMode = FileMode.CreateNew;
+
+            if (File.Exists(newFilePath))
+            {
+                var overwriteResult = MessageBox.Show(
+                    $"A file names '{fileName}' already exists. Overwrite?",
+                    "File Already Exists", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (overwriteResult != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                fileMode = FileMode.Create;
+                
+                Log.ForContext("Operation", "File")
+                    .Warning("Overwrite confirmed for existing file: {FilePath}", newFilePath);
+            }
 
             using (new FileStream(
                 newFilePath,
-                FileMode.CreateNew,
+                fileMode,
                 FileAccess.Write,
                 FileShare.None))
             {
