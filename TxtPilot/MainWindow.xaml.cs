@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Serilog;
 
 namespace TxtPilot;
 
@@ -18,6 +19,8 @@ public partial class MainWindow : Window
 
     private string? _originalContent;
 
+    private bool _isRestoringSelection = false;
+
     private DateTime _originalLastWriteTime;
 
     public MainWindow()
@@ -29,6 +32,14 @@ public partial class MainWindow : Window
             RefreshToast.Visibility = Visibility.Collapsed;
             _toastTimer.Stop();
         };
+    }
+
+    public void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!ConfirmUnsavedChanges())
+        {
+            e.Cancel = true;
+        }
     }
 
     // in the below like received e is event and sender is what ui element initiated the function call
@@ -46,18 +57,25 @@ public partial class MainWindow : Window
 
         var newFolderPath = dialog.FolderName;
 
-        if (_selectedFolderPath != newFolderPath)
+        if (_selectedFolderPath == newFolderPath) return;
+
+        if (!ConfirmUnsavedChanges())
         {
-            FileListView.SelectedItem = null;
-
-            //EditorTextBox.Clear();
-            //FileNameTextBox.Clear();
-            //FileMetadataTextBlock.Text = "";
-
-            ClearEditor();
+            return;
         }
+
+        FileListView.SelectedItem = null;
+
+        //EditorTextBox.Clear();
+        //FileNameTextBox.Clear();
+        //FileMetadataTextBlock.Text = "";
+
+        ClearEditor();
         
-        _selectedFolderPath = dialog.FolderName;
+        _selectedFolderPath = newFolderPath;
+
+        Log.ForContext("Operation", "folder")
+            .Information("Folder selected: {FolderPath}", _selectedFolderPath);
 
         FolderPathTextBox.Text = _selectedFolderPath;
 
@@ -108,9 +126,32 @@ public partial class MainWindow : Window
 
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+
+        if(_isRestoringSelection)
+        {
+            return;
+        }
+
         if (FileListView.SelectedItem is not FileInfo selectedFile)
         {
             return;
+        }
+
+        if (_selectedFilePath != null && _selectedFilePath != selectedFile.FullName)
+        {
+            if(!ConfirmUnsavedChanges())
+            {
+                var previousFile = FileListView.Items
+                    .Cast<FileInfo>()
+                    .FirstOrDefault(file =>
+                        file.FullName == _selectedFilePath);
+
+                _isRestoringSelection = true;
+                FileListView.SelectedItem = previousFile;
+                _isRestoringSelection = false;
+
+                return;
+            }
         }
 
         try
@@ -149,6 +190,9 @@ public partial class MainWindow : Window
             CancelEditButton.IsEnabled = false;
 
             UpdateFileMetaData(new FileInfo(selectedFile.FullName));
+
+            Log.ForContext("Operation", "File")
+                .Information("File opened: {FileName}", selectedFile.Name);
         }
         catch (FileNotFoundException)
         {
@@ -240,6 +284,8 @@ public partial class MainWindow : Window
 
         EditorTextBox.IsReadOnly = true;
 
+        this.Focus();
+
         EditButton.IsEnabled = true;
         SaveButton.IsEnabled = false;
         CancelEditButton.IsEnabled = false;
@@ -302,7 +348,11 @@ public partial class MainWindow : Window
             // replacin the editor text to file
             File.WriteAllText(_selectedFilePath, EditorTextBox.Text);
 
-            // update the original content variable with updated data
+            Log.ForContext("Operation", "File")
+                .Information("File saved: {FileName}", Path.GetFileName(_selectedFilePath));
+
+
+            // update the _originalcontent variable with updated data
             _originalContent = EditorTextBox.Text;
 
             // refresh the file metadata
@@ -318,16 +368,25 @@ public partial class MainWindow : Window
             ShowToast("File saved successfully");
 
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Access denied while saving file: {FilePath}", _selectedFilePath);
+
             MessageBox.Show("You don't have permission to modify this file.");
         }
         catch (IOException ex)
         {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unable to save file: {FilePath}", _selectedFilePath);
+
             MessageBox.Show($"Unable to save the file: {ex.Message}");
         }
         catch (Exception ex)
         {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unexpected error while saving file: {FilePath}", _selectedFilePath);
+
             MessageBox.Show($"An unexpected error occurred: {ex.Message}");
         }
     }
@@ -358,6 +417,8 @@ public partial class MainWindow : Window
             return;
         };
 
+        string newFilePath = string.Empty;
+
         try
         {
             string fileName = dialog.FileName;
@@ -376,7 +437,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            string newFilePath = Path.Combine(_selectedFolderPath, fileName);
+            newFilePath = Path.Combine(_selectedFolderPath, fileName);
 
             using (new FileStream(
                 newFilePath,
@@ -385,6 +446,9 @@ public partial class MainWindow : Window
                 FileShare.None))
             {
             }
+
+            Log.ForContext("Operation", "File")
+                .Information("File created: {FileName}", fileName);
 
             LoadTextFiles();
 
@@ -404,18 +468,59 @@ public partial class MainWindow : Window
             ShowToast("File created successfully");
 
         }
-        catch (UnauthorizedAccessException)
+
+        catch (UnauthorizedAccessException ex)
         {
-            MessageBox.Show("You dont have permission to create the ile");
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Access denied while creating file: {FilePath}", newFilePath);
+
+            MessageBox.Show("You don't have permission to create the file.");
         }
         catch (IOException ex)
         {
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unable to create file: {FilePath}", newFilePath);
+
             MessageBox.Show($"Unable to create the file: {ex.Message}");
         }
-        catch (Exception ex) 
+        catch (Exception ex)
         {
-            MessageBox.Show($"An unexpected error occured: {ex.Message}");
+            Log.ForContext("Operation", "File")
+                .Error(ex, "Unexpected error while creating file: {FilePath}", newFilePath);
+
+            MessageBox.Show($"An unexpected error occurred: {ex.Message}");
         }
+    }
+
+    private bool ConfirmUnsavedChanges()
+    {
+        if(!_hasUnsavedChanges)
+        {
+            return true;
+        }
+
+        var resukt = MessageBox.Show(
+            "You have unsaved changes, Do you want to save them before closing?",
+            "Unsaved Changes",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning);
+
+        if ( resukt == MessageBoxResult.Yes )
+        {
+            SaveButton_Click(this, new RoutedEventArgs());
+
+            return !_hasUnsavedChanges;
+        }
+
+        if (resukt == MessageBoxResult.No)
+        {
+            EditorTextBox.Text = _originalContent ?? "";
+
+            ExitEditMode();
+
+            return true;
+        }
+        return false;
     }
 
 
